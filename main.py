@@ -82,7 +82,9 @@ while running:
                     # count += 1
         elif event.type == pygame.MOUSEMOTION:
             if dragged_symbol is not None:
-                current_symbols[dragged_symbol][1].move_ip(event.rel)
+                    rect.move_ip(event.rel)
+                    rect.clamp_ip(draw_area)
+                    current_symbols[dragged_symbol] = (symbol, rect)
     
     if drawing: 
         mouse_position = pygame.mouse.get_pos()
