@@ -19,6 +19,7 @@ draw_area = pygame.Rect(0, 0, width * 0.5, height * 0.5)
 drawing = False
 last_position = None
 clock = pygame.time.Clock()
+sketch_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
 
 pygame.display.flip()
 
@@ -33,16 +34,32 @@ while running:
         elif event.type == pygame.MOUSEBUTTONUP:
             drawing = False
             last_position = None
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN:
+                box = sketch_surface.get_bounding_rect()
+                if box.width and box.height:
+                    sketch = sketch_surface.subsurface(box).copy()
+
+                    inverted = pygame.Surface(sketch.get_size())
+                    inverted.fill(BLACK)
+
+                    for w in range(inverted.get_width()):
+                        for h in range(inverted.get_height()):
+                            r, g, b, a = sketch.get_at((w, h))
+                            if a and (r, g, b) == BLACK:
+                                inverted.set_at((w, h), WHITE)
+                    pygame.image.save(inverted, "sketch.png")
     
     if drawing: 
         mouse_position = pygame.mouse.get_pos()
         if draw_area.collidepoint(mouse_position):
             if last_position and draw_area.collidepoint(last_position):
-                pygame.draw.line(screen, BLACK, last_position, mouse_position, 2)
+                pygame.draw.line(sketch_surface, BLACK, last_position, mouse_position, 2)
             last_position = mouse_position
         else: 
-            last_position = mouse_position
+            last_position = None
     
+    screen.blit(sketch_surface, (0, 0))
     pygame.display.flip()
     clock.tick(60)
 
