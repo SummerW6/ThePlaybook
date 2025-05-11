@@ -1,5 +1,19 @@
 import pygame
-count = 0
+# from classifier import classify
+
+
+symbols = {
+    'asterisk' : "images/basketball.svg",
+    'one-circled' : "images/number-1.svg",
+    'two-circled' : "images/number-2.svg",
+    'three-circled' : "images/number-3.svg",
+    'four-circled' : "images/number-4.svg",
+    'five-circled' : "images/number-5.svg"
+}
+
+current_symbols = []
+dragged_symbol = None
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
@@ -20,6 +34,7 @@ drawing = False
 last_position = None
 clock = pygame.time.Clock()
 sketch_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+scratch_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
 
 pygame.display.flip()
 
@@ -29,16 +44,24 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            drawing = True
-            last_position = event.pos
+            for idx, (symbol, rect) in enumerate(current_symbols):
+                if rect.collidepoint(event.pos):
+                    dragged_symbol = idx
+                    break
+            if dragged_symbol is None:
+                drawing = True
+                last_position = event.pos
         elif event.type == pygame.MOUSEBUTTONUP:
             drawing = False
             last_position = None
+            if dragged_symbol is not None:
+                dragged_symbol = None
         elif event.type == pygame.KEYDOWN:
-            box = sketch_surface.get_bounding_rect()
             if event.key == pygame.K_RETURN:
+                box = scratch_surface.get_bounding_rect()
                 if box.width and box.height:
-                    sketch = sketch_surface.subsurface(box).copy()
+                    sketch = scratch_surface.subsurface(box).copy()
+                    scratch_surface.fill((0, 0, 0, 0), rect=box)
 
                     inverted = pygame.Surface(sketch.get_size())
                     inverted.fill(BLACK)
@@ -48,22 +71,32 @@ while running:
                             r, g, b, a = sketch.get_at((w, h))
                             if a and (r, g, b) == BLACK:
                                 inverted.set_at((w, h), WHITE)
-                    pygame.image.save(inverted, f"data/train/four-circled/sketch_{count}.png")
-                    count += 1
-            if event.key == pygame.K_BACKSPACE:
-                sketch_surface.fill((0, 0, 0, 0), rect=box)
+                    symbol = pygame.image.load(symbols["asterisk"]).convert_alpha()
+                    symbol = pygame.transform.smoothscale(symbol, (50, 50))
+                    current_symbols.append((symbol, symbol.get_rect(topleft=box.topleft)))
+                    sketch_surface.blit(symbol, box.topleft)
+                    # label = classify(inverted)
+                    # print(label)
+                    # resized = pygame.transform.smoothscale(inverted, (28, 28))
+                    # pygame.image.save(inverted, f"sketch_{count}.png")
+                    # count += 1
+        elif event.type == pygame.MOUSEMOTION:
+            if dragged_symbol is not None:
+                current_symbols[dragged_symbol][1].move_ip(event.rel)
     
     if drawing: 
         mouse_position = pygame.mouse.get_pos()
         if draw_area.collidepoint(mouse_position):
             if last_position and draw_area.collidepoint(last_position):
-                pygame.draw.line(sketch_surface, BLACK, last_position, mouse_position, 2)
+                pygame.draw.line(scratch_surface, BLACK, last_position, mouse_position, 2)
             last_position = mouse_position
         else: 
             last_position = None
     
     screen.blit(resized_court, (0, 0))
-    screen.blit(sketch_surface, (0, 0))
+    for symbol, rect in current_symbols:
+        screen.blit(symbol, rect)
+    screen.blit(scratch_surface, (0, 0))
     pygame.display.flip()
     clock.tick(60)
 
