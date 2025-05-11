@@ -1,5 +1,5 @@
 import pygame
-
+count = 0
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
@@ -35,8 +35,8 @@ while running:
             drawing = False
             last_position = None
         elif event.type == pygame.KEYDOWN:
+            box = sketch_surface.get_bounding_rect()
             if event.key == pygame.K_RETURN:
-                box = sketch_surface.get_bounding_rect()
                 if box.width and box.height:
                     sketch = sketch_surface.subsurface(box).copy()
 
@@ -48,7 +48,10 @@ while running:
                             r, g, b, a = sketch.get_at((w, h))
                             if a and (r, g, b) == BLACK:
                                 inverted.set_at((w, h), WHITE)
-                    pygame.image.save(inverted, "sketch.png")
+                    pygame.image.save(inverted, f"data/train/four-circled/sketch_{count}.png")
+                    count += 1
+            if event.key == pygame.K_BACKSPACE:
+                sketch_surface.fill((0, 0, 0, 0), rect=box)
     
     if drawing: 
         mouse_position = pygame.mouse.get_pos()
@@ -59,6 +62,7 @@ while running:
         else: 
             last_position = None
     
+    screen.blit(resized_court, (0, 0))
     screen.blit(sketch_surface, (0, 0))
     pygame.display.flip()
     clock.tick(60)
