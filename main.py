@@ -1,6 +1,14 @@
 import pygame
-# from classifier import classify
+import speech_recognition as sr
+import threading
+from classifier import classify
 
+for i, name in enumerate(sr.Microphone.list_microphone_names()):
+    print(f"Device {i}: {name}")
+
+device_index = 2 # Choose correct microphone
+
+recognizing = False
 
 symbols = {
     'asterisk' : "images/basketball.svg",
@@ -16,6 +24,8 @@ dragged_symbol = None
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+LIGHT_GRAY = (170, 170, 170)
+DARK_GRAY = (100, 100, 100)
 
 pygame.init()
 
@@ -36,6 +46,70 @@ clock = pygame.time.Clock()
 sketch_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
 scratch_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
 
+button_rect = pygame.Rect(screen.get_width() - 200, 20, 200, 50)
+font = pygame.font.SysFont(None, 28)
+record_text = "Start Record"
+
+
+def draw_button():
+    button_text = font.render(record_text, True, BLACK)
+    mouse_position = pygame.mouse.get_pos()
+    color = LIGHT_GRAY if button_rect.collidepoint(mouse_position) else DARK_GRAY
+    pygame.draw.rect(screen, color, button_rect)
+    screen.blit(button_text, (button_rect.x + 40, button_rect.y + 15))
+
+def draw_message_box(text):
+    message = font.render(text, True, BLACK)
+    padding = 10
+    box_width = message.get_width() + 2 * padding
+    box_height = message.get_height() + 2 * padding
+
+    x = screen.get_width() - box_width - 20
+    y = screen.get_height() - box_height - 20
+    message_rect = pygame.Rect(x, y, box_width, box_height)
+
+    pygame.draw.rect(screen, LIGHT_GRAY, message_rect)
+    pygame.draw.rect(screen, DARK_GRAY, message_rect, 2)
+    screen.blit(message, (x + padding, y + padding))
+
+def parse_command(command):
+    command = command.lower()
+    symbol = None
+    if "draw" in command:
+        if "basketball" in command:
+            symbol = pygame.image.load(symbols["asterisk"]).convert_alpha()
+        if "point" in command:
+            symbol = pygame.image.load(symbols["one-circled"]).convert_alpha()
+        if "shooting" in command:
+            symbol = pygame.image.load(symbols["two-circled"]).convert_alpha()
+        if "small" in command:
+            symbol = pygame.image.load(symbols["three-circled"]).convert_alpha()
+        if "power" in command:
+            symbol = pygame.image.load(symbols["four-circled"]).convert_alpha()
+        if "center" in command:
+            symbol = pygame.image.load(symbols["five-circled"]).convert_alpha()
+    if symbol is not None: 
+        symbol = pygame.transform.smoothscale(symbol, (50, 50))
+        current_symbols.append((symbol, symbol.get_rect(topleft=(500, 400))))
+        
+recognizer = sr.Recognizer()
+
+def listen():
+    global recognizing, record_text
+
+    with sr.Microphone(device_index=device_index) as source:
+        # recognizer.adjust_for_ambient_noise(source)
+        try:
+            print("Lisitening")
+            audio = recognizer.listen(source, timeout=10, phrase_time_limit=10)
+            text = recognizer.recognize_google(audio)
+            parse_command(text)
+            print("You said: ", text)
+        except Exception as e:
+            print("there was an error", repr(e))
+    recognizing = False
+    record_text = "Start Record"
+
 pygame.display.flip()
 
 running = True
@@ -44,6 +118,10 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
+            if button_rect.collidepoint(event.pos):
+                recognizing = True
+                record_text = "Stop Record" if record_text == "Start Record" else "Start Record"
+                threading.Thread(target=listen, daemon=True).start()
             for idx, (symbol, rect) in enumerate(current_symbols):
                 if rect.collidepoint(event.pos):
                     dragged_symbol = idx
@@ -71,17 +149,19 @@ while running:
                             r, g, b, a = sketch.get_at((w, h))
                             if a and (r, g, b) == BLACK:
                                 inverted.set_at((w, h), WHITE)
-                    symbol = pygame.image.load(symbols["asterisk"]).convert_alpha()
+                    label = classify(inverted)
+                    symbol = pygame.image.load(symbols[label]).convert_alpha()
                     symbol = pygame.transform.smoothscale(symbol, (50, 50))
                     current_symbols.append((symbol, symbol.get_rect(topleft=box.topleft)))
                     sketch_surface.blit(symbol, box.topleft)
-                    # label = classify(inverted)
-                    # print(label)
+
+                    print(label)
                     # resized = pygame.transform.smoothscale(inverted, (28, 28))
                     # pygame.image.save(inverted, f"sketch_{count}.png")
                     # count += 1
         elif event.type == pygame.MOUSEMOTION:
             if dragged_symbol is not None:
+                    symbol, rect = current_symbols[dragged_symbol]
                     rect.move_ip(event.rel)
                     rect.clamp_ip(draw_area)
                     current_symbols[dragged_symbol] = (symbol, rect)
@@ -95,7 +175,10 @@ while running:
         else: 
             last_position = None
     
+
     screen.blit(resized_court, (0, 0))
+    draw_button()
+
     for symbol, rect in current_symbols:
         screen.blit(symbol, rect)
     screen.blit(scratch_surface, (0, 0))
